@@ -2,7 +2,7 @@ mesh_segmentation
 =================
 
 A simple python addon for blender using spectral clustering to segment meshes. Uses [numpy](http://www.numpy.org/) and [scipy](http://www.scipy.org/) for matrix calculations.
-
+Developed as a project for the spectral-clustering course of University Bremen.
 ### Usage
 
  - [Install numpy and scipy](http://scipy.org/install.html) and move the numpy and scipy folders to "YOUR_BLENDER_PATH/python/lib/site_packages" or "YOUR_BLENDER_PATH/python/scripts/modules"
