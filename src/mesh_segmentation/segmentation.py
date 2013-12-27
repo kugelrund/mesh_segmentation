@@ -4,6 +4,8 @@ import math
 import numpy
 import scipy.linalg
 import scipy.cluster
+import scipy.sparse
+import scipy.sparse.csgraph
 
 delta = 0.02
 eta = 0.15
@@ -40,7 +42,8 @@ def _create_affinity_matrix(mesh):
     
     faces = [MeshPolygonAdj(face) for face in mesh.polygons]
     # create matrix of the distances first
-    W = numpy.identity(len(faces))
+    l = len(faces)
+    W = scipy.sparse.csr_matrix((l,l),dtype=float)
     
     # progress bar
     bpy.context.window_manager.progress_begin(0,100)
@@ -63,14 +66,15 @@ def _create_affinity_matrix(mesh):
                     j = i
         progress += step
         
-    # TODO: for each non adjacent pair of faces find shortest 
-    #       path of adjacent faces (dijkstra?)
+    #for each non adjacent pair of faces find shortest 
+    #path of adjacent faces (dijkstra?)
+    W = scipy.sparse.csgraph.dijkstra(W,directed=False)
     
     # change distance entries to similarities
-    sigma = W.sum()/(len(faces) * len(faces))
+    sigma = W.sum()/(l * l)
     
     den = 2 * sigma ** 2    # this should be used but without distances of non-
-    den = 2                 # adjacent faces gives bad results so use 2 for now
+   # den = 2                 # adjacent faces gives bad results so use 2 for now
     
     for (i,j), value in numpy.ndenumerate(W):
         if not (value == 0 or value == 1):
