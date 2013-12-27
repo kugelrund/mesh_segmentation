@@ -46,13 +46,13 @@ def _create_affinity_matrix(mesh):
     W = scipy.sparse.csr_matrix((l,l),dtype=float)
     
     # progress bar
-    bpy.context.window_manager.progress_begin(0,100)
-    progress = 0
-    step = 1/len(mesh.edge_keys)
+   # bpy.context.window_manager.progress_begin(0,100)
+   # progress = 0
+  #  step = 1/len(mesh.edge_keys)
     
     # find adjacent faces
     for edge in mesh.edge_keys:
-        bpy.context.window_manager.progress_update(progress) 
+     #   bpy.context.window_manager.progress_update(progress) 
         j = None # index of possible adjacent face
         for i, face in enumerate(faces):
             if edge in face.edge_keys:
@@ -64,15 +64,19 @@ def _create_affinity_matrix(mesh):
                     break
                 else:
                     j = i
-        progress += step
+        #progress += step
         
     #for each non adjacent pair of faces find shortest 
     #path of adjacent faces (dijkstra?)
+    print("W before \n")
+    print(W.todense())
     W = scipy.sparse.csgraph.dijkstra(W,directed=False)
-    
+    print("W after \n")
+    print(W)
+    W = W.clip(max=10000)
     # change distance entries to similarities
     sigma = W.sum()/(l * l)
-    
+    print(str(sigma))
     den = 2 * sigma ** 2    # this should be used but without distances of non-
    # den = 2                 # adjacent faces gives bad results so use 2 for now
     
@@ -85,9 +89,7 @@ def _create_affinity_matrix(mesh):
 def segment_mesh(mesh, k, coefficients, action = None):
     """Segments the given mesh into k clusters and performs the given 
     action for each cluster
-    
     """
-    
     # set coefficients
     global delta
     global eta
@@ -113,4 +115,4 @@ def segment_mesh(mesh, k, coefficients, action = None):
     if action:
         action(mesh, k, idx)
         
-    bpy.context.window_manager.progress_end()
+#    bpy.context.window_manager.progress_end()
