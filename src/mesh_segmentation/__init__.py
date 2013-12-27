@@ -37,13 +37,13 @@ class MeshSegmentation(bpy.types.Operator):
                                                   "distance, set close to one "
                                                   "for more importance on the "
                                                   "geodesic distance.",
-                                    default = 0.02,
+                                    default = 0.15,
                                     min = 0,
                                     max = 1,
                                     subtype = 'FACTOR')  
     eta = bpy.props.FloatProperty(name = "Weight of concativity",
                                   description = "",
-                                  default = 0.15,
+                                  default = 0.2,
                                   min = 0,
                                   max = 1,
                                   subtype = 'FACTOR')
@@ -56,9 +56,9 @@ class MeshSegmentation(bpy.types.Operator):
             return {'CANCELLED'}
         else:
             segmentation.segment_mesh(context.active_object.data, 
-                                          self.k, 
-                                          (self.delta, self.eta), 
-                                          getattr(actions, self.action))
+                                      self.k, 
+                                      (self.delta, self.eta), 
+                                      getattr(actions, self.action))
         return {'FINISHED'}
     
     def invoke(self, context, event):

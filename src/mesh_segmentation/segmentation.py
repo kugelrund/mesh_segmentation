@@ -7,8 +7,9 @@ import scipy.cluster
 import scipy.sparse
 import scipy.sparse.csgraph
 
-delta = 0.02
-eta = 0.15
+delta
+eta
+affinity_matrix
 
 def _geodesic_distance(face1, face2):
     """Computes the distance between the two adjacent faces face1 and face2"""
@@ -61,15 +62,15 @@ def _create_affinity_matrix(mesh):
         progress += step
     
     # weight with delta and maximum value
-    G.dot(delta/maxG)
-    A.dot((1 - delta)/maxA)
+    G = G.dot(delta/maxG)
+    A = A.dot((1 - delta)/maxA)
     
     # for each non adjacent pair of faces find shortest path of adjacent faces 
-    W = scipy.sparse.csgraph.dijkstra(G + A, directed=False)
+    W = scipy.sparse.csgraph.dijkstra(G + A, directed = False)
     
     # change distance entries to similarities
-    sigma = W.sum()/(l * l)
-    den = 2 * sigma ** 2
+    sigma = W.sum()/(l ** 2)
+    den = 2 * (sigma ** 2)
     
     for (i,j), value in numpy.ndenumerate(W):
         W[i,j] = math.exp(-W[i,j]/den)
