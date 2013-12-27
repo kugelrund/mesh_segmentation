@@ -18,18 +18,15 @@ class MeshSegmentation(bpy.types.Operator):
     bl_idname = "object.mesh_segmentation"
     bl_label = "Segment Mesh"
     bl_options = {'REGISTER', 'UNDO'}
-
-    # properties set by the user
-    exe = bpy.props.BoolProperty(name = "Execute",
-                                 description = "If it shall actually run.",
-                                 default = False)
+    
+    # parameters
     action = bpy.props.EnumProperty(name ="Action",
                                     items = [('assignMaterials', 
                                             "Assign materials", 
                                             "Assigns a different material for "
                                             "each found segment")],
                                     description = "What to do with the "
-                                                "segmentation",
+                                                  "segmentation",
                                     default = 'assignMaterials')    
     k = bpy.props.IntProperty(name = "Clusters",
                               description = "Amount of clusters",
@@ -52,24 +49,35 @@ class MeshSegmentation(bpy.types.Operator):
                                   subtype = 'FACTOR')
 
     def execute(self, context):
-        """Executes the segmentation"""
-        if self.exe:
+        """Executes the segmentation"""        
+        if bpy.ops.mesh.separate(type='LOOSE') != {'CANCELLED'}:
+            self.report({'ERROR'}, "Separated not connected parts, choose " 
+                                   "one of them for segmentation!")
+            return {'CANCELLED'}
+        else:
             segmentation.segment_mesh(context.active_object.data, 
-                                      self.k, 
-                                      (self.delta, self.eta), 
-                                      getattr(actions, self.action))
-            self.exe = False
-            
+                                          self.k, 
+                                          (self.delta, self.eta), 
+                                          getattr(actions, self.action))
         return {'FINISHED'}
     
+    def invoke(self, context, event):
+        if context.active_object.type == 'MESH':
+            return context.window_manager.invoke_props_dialog(self)
+        else:
+            self.report({'ERROR'}, "Selected object is not a mesh!")
+            return {'CANCELLED'}
+        
   
 def register():
     """Registers the MeshSegmentation operator in blender"""
     bpy.utils.register_class(MeshSegmentation)
 
+
 def unregister():
     """Unregisters the MeshSegmentation operator from blender"""
     bpy.utils.unregister_class(MeshSegmentation)
+    
     
 # developing purpose for registering when run from blender texteditor
 if __name__ == "__main__":

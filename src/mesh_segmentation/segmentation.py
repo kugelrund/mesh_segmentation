@@ -10,26 +10,6 @@ import scipy.sparse.csgraph
 delta = 0.02
 eta = 0.15
 
-class MeshPolygonAdj:
-    """Wrapper for a MeshPolygon. Saves a list of adjacent faces"""
-
-    def __init__(self, polygon):
-        self.__poly = polygon
-        self.adjPolys = []
-        
-    @property
-    def edge_keys(self):
-        return self.__poly.edge_keys
-    
-    @property
-    def vertices(self):
-        return self.__poly.vertices
-    
-    @property
-    def normal(self):
-        return self.__poly.normal
-
-
 def _distance(face1, face2):
     """Computes the distance between the two adjacent faces face1 and face2"""
     center1 = sum(face1.vertices)/len(face1.vertices)
@@ -37,54 +17,47 @@ def _distance(face1, face2):
     return (delta * numpy.linalg.norm(center2 - center1) + (1 - delta) * eta * 
            (1 - math.cos(mathutils.Vector.angle(face1.normal, face2.normal))))
 
+
 def _create_affinity_matrix(mesh):
     """Create the adjacency matrix of the given mesh"""
     
-    faces = [MeshPolygonAdj(face) for face in mesh.polygons]
-    # create matrix of the distances first
+    faces = mesh.polygons
     l = len(faces)
-    W = scipy.sparse.csr_matrix((l,l),dtype=float)
+    
+    # create matrix of the distances first
+    W = scipy.sparse.csr_matrix((l, l), dtype=float)
     
     # progress bar
-   # bpy.context.window_manager.progress_begin(0,100)
-   # progress = 0
-  #  step = 1/len(mesh.edge_keys)
+    bpy.context.window_manager.progress_begin(0, 100)
+    progress = 0
+    step = 1/len(mesh.edge_keys)
     
     # find adjacent faces
     for edge in mesh.edge_keys:
-     #   bpy.context.window_manager.progress_update(progress) 
+        bpy.context.window_manager.progress_update(progress) 
         j = None # index of possible adjacent face
         for i, face in enumerate(faces):
             if edge in face.edge_keys:
-                if not (j is None or faces[j] in face.adjPolys):
-                    face.adjPolys.append(faces[j])
-                    faces[j].adjPolys.append(face)
+                if not (j is None or W[i,j] != 0):
                     W[i,j] = _distance(face, faces[j])
                     W[j,i] = W[i,j]
                     break
                 else:
                     j = i
-        #progress += step
+        progress += step
         
-    #for each non adjacent pair of faces find shortest 
-    #path of adjacent faces (dijkstra?)
-    print("W before \n")
-    print(W.todense())
-    W = scipy.sparse.csgraph.dijkstra(W,directed=False)
-    print("W after \n")
-    print(W)
-    W = W.clip(max=10000)
+    # for each non adjacent pair of faces find shortest path of adjacent faces 
+    W = scipy.sparse.csgraph.dijkstra(W, directed=False)
+    
     # change distance entries to similarities
     sigma = W.sum()/(l * l)
-    print(str(sigma))
-    den = 2 * sigma ** 2    # this should be used but without distances of non-
-   # den = 2                 # adjacent faces gives bad results so use 2 for now
+    den = 2 * sigma ** 2
     
     for (i,j), value in numpy.ndenumerate(W):
-        if not (value == 0 or value == 1):
-            W[i,j] = math.exp(-W[i,j]/den)
+        W[i,j] = math.exp(-W[i,j]/den)
             
     return W
+
 
 def segment_mesh(mesh, k, coefficients, action = None):
     """Segments the given mesh into k clusters and performs the given 
@@ -115,4 +88,4 @@ def segment_mesh(mesh, k, coefficients, action = None):
     if action:
         action(mesh, k, idx)
         
-#    bpy.context.window_manager.progress_end()
+    bpy.context.window_manager.progress_end()
