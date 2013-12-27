@@ -10,12 +10,16 @@ import scipy.sparse.csgraph
 delta = 0.02
 eta = 0.15
 
-def _distance(face1, face2):
+def _geodesic_distance(face1, face2):
     """Computes the distance between the two adjacent faces face1 and face2"""
     center1 = sum(face1.vertices)/len(face1.vertices)
     center2 = sum(face2.vertices)/len(face2.vertices)
-    return (delta * numpy.linalg.norm(center2 - center1) + (1 - delta) * eta * 
-           (1 - math.cos(mathutils.Vector.angle(face1.normal, face2.normal))))
+    return numpy.linalg.norm(center2 - center1)
+
+
+def _angular_distance(face1, face2):
+    return eta * (1 - math.cos(mathutils.Vector.angle(face1.normal, 
+                                                      face2.normal)))
 
 
 def _create_affinity_matrix(mesh):
@@ -24,8 +28,12 @@ def _create_affinity_matrix(mesh):
     faces = mesh.polygons
     l = len(faces)
     
-    # create matrix of the distances first
-    W = scipy.sparse.csr_matrix((l, l), dtype=float)
+    # matrix of geodesic distances
+    G = scipy.sparse.csr_matrix((l, l), dtype=float)
+    maxG = 0
+    # matrix of angular distances
+    A = scipy.sparse.csr_matrix((l, l), dtype=float)
+    maxA = 0
     
     # progress bar
     bpy.context.window_manager.progress_begin(0, 100)
@@ -38,16 +46,26 @@ def _create_affinity_matrix(mesh):
         j = None # index of possible adjacent face
         for i, face in enumerate(faces):
             if edge in face.edge_keys:
-                if not (j is None or W[i,j] != 0):
-                    W[i,j] = _distance(face, faces[j])
-                    W[j,i] = W[i,j]
+                if not (j is None or G[i,j] != 0):
+                    G[i,j] = _geodesic_distance(face, faces[j])
+                    A[i,j] = _angular_distance(face, faces[j])
+                    G[j,i] = G[i,j]
+                    A[i,j] = A[i,j]
+                    if G[i,j] > maxG:
+                        maxG = G[i,j]
+                    if A[i,j] > maxA:
+                        maxA = A[i,j]
                     break
                 else:
                     j = i
         progress += step
-        
+    
+    # weight with delta and maximum value
+    G.dot(delta/maxG)
+    A.dot((1 - delta)/maxA)
+    
     # for each non adjacent pair of faces find shortest path of adjacent faces 
-    W = scipy.sparse.csgraph.dijkstra(W, directed=False)
+    W = scipy.sparse.csgraph.dijkstra(G + A, directed=False)
     
     # change distance entries to similarities
     sigma = W.sum()/(l * l)
