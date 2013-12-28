@@ -59,24 +59,43 @@ class MeshSegmentation(bpy.types.Operator):
                                       self.k, 
                                       (self.delta, self.eta), 
                                       getattr(actions, self.action))
+            
         return {'FINISHED'}
     
     def invoke(self, context, event):
         if context.active_object.type == 'MESH':
             return context.window_manager.invoke_props_dialog(self)
+        
+        
+        
+class MeshSegmentationSave(bpy.types.Operator):
+    """Save the distance matrices for Segmentation"""
+    
+    bl_idname = "object.mesh_segmentation_save"
+    bl_label = "Save matrices for Segment Mesh"
+    bl_options = {'REGISTER'}
+    
+    def execute(self, context):
+        """Executes the saving of the distance matrices"""
+        if context.active_object.type == 'MESH':
+            segmentation._create_distance_matrices(context.active_object.data,
+                                                   True)
+            return {'FINISHED'}
         else:
             self.report({'ERROR'}, "Selected object is not a mesh!")
-            return {'CANCELLED'}
+            return {'CANCELLED'}        
         
   
 def register():
     """Registers the MeshSegmentation operator in blender"""
     bpy.utils.register_class(MeshSegmentation)
+    bpy.utils.register_class(MeshSegmentationSave)
 
 
 def unregister():
     """Unregisters the MeshSegmentation operator from blender"""
     bpy.utils.unregister_class(MeshSegmentation)
+    bpy.utils.unregister_class(MeshSegmentationSave)
     
     
 # developing purpose for registering when run from blender texteditor
