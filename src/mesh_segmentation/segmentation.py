@@ -2,33 +2,51 @@ import bpy
 import mathutils
 import math
 import numpy
-import scipy.linalg
-import scipy.cluster
-import scipy.sparse
-import scipy.sparse.csgraph
+import scipy
 
 delta = None
 eta = None
 
-def _geodesic_distance(face1, face2):
-    """Computes the distance between the two adjacent faces face1 and face2"""
-    center1 = sum(face1.vertices)/len(face1.vertices)
-    center2 = sum(face2.vertices)/len(face2.vertices)
-    return numpy.linalg.norm(center2 - center1)
+
+def _face_center(mesh, face):
+    """Computes the coordinates of the center of the given face"""
+    center = mathutils.Vector()
+    for vert in face.vertices:
+        center += mesh.vertices[vert].co
+    return center/len(face.vertices)
+
+
+def _geodesic_distance(mesh, face1, face2, edge):
+    """Computes the geodesic distance over the given edge between 
+    the two adjacent faces face1 and face2"""
+    edge_center = (mesh.vertices[edge[0]].co + mesh.vertices[edge[1]].co)/2
+    return (edge_center - _face_center(mesh, face1)).length + \
+           (edge_center - _face_center(mesh, face2)).length
 
 
 def _angular_distance(face1, face2):
+    """Computes the angular distance of the given adjacent faces"""
     return (1 - math.cos(mathutils.Vector.angle(face1.normal, 
                                                 face2.normal)))
                                                       
                                                       
 def _create_distance_matrices(mesh, save_dists):
+    """Creates the matrices of the angular and geodesic distances
+    between all adjacent faces. The i,j-th entry of the returned
+    matrices contains the distance between the i-th and j-th face.
+    
+    save_dists = True will calculate the matrices and save them
+    into the mesh, so that these can be used in a later call of
+    this function with save_dists = False
+    """
     
     faces = mesh.polygons
     l = len(faces)
     
     if not save_dists and ("geo_dist_mat" in mesh and "ang_dist_mat" in mesh and
                            "geo_dist_avg" in mesh and "ang_dist_avg" in mesh):
+        # the matrices are already calculated, we only have to load and
+        # return them
         return (scipy.sparse.lil_matrix(mesh["geo_dist_mat"]),
                 scipy.sparse.lil_matrix(mesh["ang_dist_mat"]),
                 mesh["geo_dist_avg"],
@@ -45,6 +63,9 @@ def _create_distance_matrices(mesh, save_dists):
         bpy.context.window_manager.progress_begin(0, 100)
         progress = 0
         step = 1/len(mesh.edge_keys)
+        
+        # number of pairs of adjacent faces
+        num_adj = 0
     
         # find adjacent faces
         for edge in mesh.edge_keys:
@@ -53,21 +74,22 @@ def _create_distance_matrices(mesh, save_dists):
             for i, face in enumerate(faces):
                 if edge in face.edge_keys:
                     if not (j is None or G[i,j] != 0):
-                        G[i,j] = _geodesic_distance(face, faces[j])
+                        G[i,j] = _geodesic_distance(mesh, face, faces[j], edge)
                         A[i,j] = _angular_distance(face, faces[j])
                         G[j,i] = G[i,j]
-                        A[i,j] = A[i,j]
+                        A[j,i] = A[i,j]
                         if G[i,j] > avgG:
                             avgG += G[i,j]
                         if A[i,j] > avgA:
                             avgA += A[i,j]
+                        num_adj += 1
                         break
                     else:
                         j = i
             progress += step
             
-        avgG = avgG/(l ** 2)
-        avgA = avgA/(l ** 2)
+        avgG = avgG/num_adj
+        avgA = avgA/num_adj
             
         if save_dists:
             mesh["geo_dist_mat"] = G.toarray()
@@ -85,7 +107,7 @@ def _create_affinity_matrix(mesh):
     l = len(mesh.polygons)
     G, A, avgG, avgA = _create_distance_matrices(mesh, False)    
     
-    # weight with delta and maximum value
+    # weight with delta and average value
     G = G.dot(delta/avgG)
     A = A.dot((1 - delta)*eta/(avgA * eta))
     
@@ -118,20 +140,21 @@ def segment_mesh(mesh, k, coefficients, action):
     # affinity matrix
     W = _create_affinity_matrix(mesh)
     # degree matrix
-    Dsqrt = numpy.sqrt(numpy.diag([1/entry for entry in sum(W, 0)]))
+    Dsqrt = numpy.diag([math.sqrt(1/entry) for entry in W.sum(1)])
     # graph laplacian
-    L = numpy.dot(numpy.dot(Dsqrt, W), Dsqrt)
+    L = Dsqrt.dot(W.dot(Dsqrt))
  
     # get eigenvectors
     l,V = scipy.linalg.eigh(L, eigvals = (L.shape[0] - k, L.shape[0] - 1))
-    # normalize
-    V = scipy.cluster.vq.whiten(V)
+    # normalize each column to unit length
+    V = V / [numpy.linalg.norm(column) for column in V.transpose()]
     
     # apply kmeans
     cluster_res,_ = scipy.cluster.vq.kmeans(V, k)
     # get identification vector
     idx,_ = scipy.cluster.vq.vq(V, cluster_res)
     
+    # perform action with the clustering result
     if action:
         action(mesh, k, idx)
     
