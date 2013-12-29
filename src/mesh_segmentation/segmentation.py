@@ -2,7 +2,10 @@ import bpy
 import mathutils
 import math
 import numpy
-import scipy
+import scipy.linalg
+import scipy.cluster
+import scipy.sparse
+import scipy.sparse.csgraph
 
 delta = None
 eta = None
