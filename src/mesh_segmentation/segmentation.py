@@ -27,10 +27,15 @@ def _geodesic_distance(mesh, face1, face2, edge):
            (edge_center - _face_center(mesh, face2)).length
 
 
-def _angular_distance(face1, face2):
+def _angular_distance(mesh, face1, face2):
     """Computes the angular distance of the given adjacent faces"""
-    return (1 - math.cos(mathutils.Vector.angle(face1.normal, 
-                                                face2.normal)))
+    if face1.normal.dot(_face_center(mesh, face2) - _face_center(mesh, face1)) \
+       >= 0:
+           return (1 - math.cos(mathutils.Vector.angle(face1.normal,
+                                                       face2.normal)))
+    else:
+        return eta * (1 - math.cos(mathutils.Vector.angle(face1.normal,
+                                                          face2.normal)))
                                                       
                                                       
 def _create_distance_matrices(mesh, save_dists):
@@ -47,7 +52,8 @@ def _create_distance_matrices(mesh, save_dists):
     l = len(faces)
     
     if not save_dists and ("geo_dist_mat" in mesh and "ang_dist_mat" in mesh and
-                           "geo_dist_avg" in mesh and "ang_dist_avg" in mesh):
+                           "geo_dist_avg" in mesh and "ang_dist_avg" in mesh and
+                           "seg_eta" in mesh and mesh["seg_eta"] == eta):
         # the matrices are already calculated, we only have to load and
         # return them
         return (scipy.sparse.lil_matrix(mesh["geo_dist_mat"]),
@@ -78,31 +84,31 @@ def _create_distance_matrices(mesh, save_dists):
                 if edge in face.edge_keys:
                     if not (j is None or G[i,j] != 0):
                         G[i,j] = _geodesic_distance(mesh, face, faces[j], edge)
-                        A[i,j] = _angular_distance(face, faces[j])
+                        A[i,j] = _angular_distance(mesh, face, faces[j])
                         G[j,i] = G[i,j]
                         A[j,i] = A[i,j]
-                        if G[i,j] > avgG:
-                            avgG += G[i,j]
-                        if A[i,j] > avgA:
-                            avgA += A[i,j]
+                        avgG += G[i,j]
+                        avgA += A[i,j]
                         num_adj += 1
                         break
                     else:
                         j = i
             #progress += step
             
-        avgG = avgG/num_adj
-        avgA = avgA/num_adj
+        avgG /= num_adj
+        avgA /= num_adj
             
         if save_dists:
             mesh["geo_dist_mat"] = G.toarray()
             mesh["ang_dist_mat"] = A.toarray()
             mesh["geo_dist_avg"] = avgG
             mesh["ang_dist_avg"] = avgA
+            mesh["seg_eta"] = eta
             
         #bpy.context.window_manager.progress_end()
         
         return (G, A, avgG, avgA)
+
 
 def _create_affinity_matrix(mesh):
     """Create the adjacency matrix of the given mesh"""
@@ -112,7 +118,7 @@ def _create_affinity_matrix(mesh):
     
     # weight with delta and average value
     G = G.dot(delta/avgG)
-    A = A.dot((1 - delta)*eta/(avgA * eta))
+    A = A.dot((1 - delta)/avgA)
     
     # for each non adjacent pair of faces find shortest path of adjacent faces 
     W = scipy.sparse.csgraph.dijkstra(G + A, directed = False)
@@ -130,40 +136,31 @@ def _create_affinity_matrix(mesh):
     return W
 
 
-def _max_association(Q,chosen,i):
-    s = -1
-    for j in range(len(chosen)):
-        if Q[chosen[j],i] > s:
-            s = Q[chosen[j],i]
-    return s
-
-def _initial_guess(Q,k):
+def _initial_guess(Q, k):
     """Computes an initial guess for the cluster-centers"""
     n = Q.shape[0]
     min_value = 2
     min_indices=(-1,-1)
-    for i in range(n):
-        for j in range(n):
-          if not i == j:
-             if Q[i,j] < min_value:
-                min_value = Q[i,j]
-                min_indices=(i,j)
-    chosen = [min_indices[0],min_indices[1]]
-    for x in range(3,k):
-        min_max = 10000 #set in a better way
-        akt_max = 0
+    for (i,j), value in numpy.ndenumerate(Q):
+        if i != j and value < min_value:
+            min_value = Q[i,j]
+            min_indices = (i,j)
+            
+    chosen = [min_indices[0], min_indices[1]]
+    for _ in range(2,k):
+        min_max = float("inf")
+        cur_max = 0
         new_index = -1
         for i in range(n):
-            if not i in chosen:
-                akt_max = _max_association(Q,chosen,i)
-                if akt_max < min_max:
-                    min_max = akt_max
+            if i not in chosen:
+                cur_max = Q[chosen,i].max()
+                if cur_max < min_max:
+                    min_max = cur_max
                     new_index = i
         chosen.append(new_index)
+        
     return chosen
-
-        
-        
+       
 
 def segment_mesh(mesh, k, coefficients, action):
     """Segments the given mesh into k clusters and performs the given 
@@ -186,10 +183,12 @@ def segment_mesh(mesh, k, coefficients, action):
     l,V = scipy.linalg.eigh(L, eigvals = (L.shape[0] - k, L.shape[0] - 1))
     # normalize each column to unit length
     V = V / [numpy.linalg.norm(column) for column in V.transpose()]
+    
     #compute association matrix
     Q = V.dot(V.transpose())
     #compute initial guess for clustering
-    initial_clusters = _initial_guess(Q,k)
+    initial_clusters = _initial_guess(Q, k)
+    
     # apply kmeans
     cluster_res,_ = scipy.cluster.vq.kmeans(V, V[initial_clusters,:])
     # get identification vector
