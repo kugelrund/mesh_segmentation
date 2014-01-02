@@ -63,16 +63,16 @@ def _create_distance_matrices(mesh, save_dists):
         avgA = 0
     
         # progress bar
-        bpy.context.window_manager.progress_begin(0, 100)
-        progress = 0
-        step = 1/len(mesh.edge_keys)
+      #  bpy.context.window_manager.progress_begin(0, 100)
+      #  progress = 0
+      #  step = 1/len(mesh.edge_keys)
         
         # number of pairs of adjacent faces
         num_adj = 0
     
         # find adjacent faces
         for edge in mesh.edge_keys:
-            bpy.context.window_manager.progress_update(progress) 
+          #  bpy.context.window_manager.progress_update(progress) 
             j = None # index of possible adjacent face
             for i, face in enumerate(faces):
                 if edge in face.edge_keys:
@@ -89,7 +89,7 @@ def _create_distance_matrices(mesh, save_dists):
                         break
                     else:
                         j = i
-            progress += step
+            #progress += step
             
         avgG = avgG/num_adj
         avgA = avgA/num_adj
@@ -100,7 +100,7 @@ def _create_distance_matrices(mesh, save_dists):
             mesh["geo_dist_avg"] = avgG
             mesh["ang_dist_avg"] = avgA
             
-        bpy.context.window_manager.progress_end()
+        #bpy.context.window_manager.progress_end()
         
         return (G, A, avgG, avgA)
 
@@ -190,7 +190,7 @@ def segment_mesh(mesh, k, coefficients, action):
     #compute initial guess for clustering
     initial_clusters = _initial_guess(Q,k)
     # apply kmeans
-    cluster_res,_ = scipy.cluster.vq.kmeans(V, k)
+    cluster_res,_ = scipy.cluster.vq.kmeans(V, V[initial_clusters,:])
     # get identification vector
     idx,_ = scipy.cluster.vq.vq(V, cluster_res)
     
