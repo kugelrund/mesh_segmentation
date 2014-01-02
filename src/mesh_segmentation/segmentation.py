@@ -130,6 +130,40 @@ def _create_affinity_matrix(mesh):
     return W
 
 
+def _max_sum_association(Q,chosen,i):
+    s = 0
+    for j in range(len(chosen)):
+        s += Q[chosen[j],i]
+    return s
+
+def _initial_guess(Q,k):
+    """Computes an initial guess for the cluster-centers"""
+    n = Q.shape[0]
+    min_value = 2
+    min_indices=(-1,-1)
+    for i in range(n):
+        for j in range(n):
+          if not i == j:
+             if Q[i,j] < min_value:
+                min_value = Q[i,j]
+                min_indices=(i,j)
+    chosen = [min_indices[0],min_indices[1]]
+    for x in range(3,k):
+        min_sum = 10000 #set in a better way
+        akt_sum = 0
+        new_index = -1
+        for i in range(n):
+            if not i in chosen:
+                akt_sum = _max_sum_association(Q,chosen,i)
+                if akt_sum < min_sum:
+                    min_sum = akt_sum
+                    new_index = i
+        chosen.append(new_index)
+    return chosen
+
+        
+        
+
 def segment_mesh(mesh, k, coefficients, action):
     """Segments the given mesh into k clusters and performs the given 
     action for each cluster
@@ -151,7 +185,10 @@ def segment_mesh(mesh, k, coefficients, action):
     l,V = scipy.linalg.eigh(L, eigvals = (L.shape[0] - k, L.shape[0] - 1))
     # normalize each column to unit length
     V = V / [numpy.linalg.norm(column) for column in V.transpose()]
-    
+    #compute association matrix
+    Q = V.dot(V.transpose())
+    #compute initial guess for clustering
+    initial_clusters = _initial_guess(Q,k)
     # apply kmeans
     cluster_res,_ = scipy.cluster.vq.kmeans(V, k)
     # get identification vector
