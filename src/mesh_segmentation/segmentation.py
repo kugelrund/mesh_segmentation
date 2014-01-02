@@ -130,10 +130,11 @@ def _create_affinity_matrix(mesh):
     return W
 
 
-def _max_sum_association(Q,chosen,i):
-    s = 0
+def _max_association(Q,chosen,i):
+    s = -1
     for j in range(len(chosen)):
-        s += Q[chosen[j],i]
+        if Q[chosen[j],i] > s:
+            s = Q[chosen[j],i]
     return s
 
 def _initial_guess(Q,k):
@@ -149,14 +150,14 @@ def _initial_guess(Q,k):
                 min_indices=(i,j)
     chosen = [min_indices[0],min_indices[1]]
     for x in range(3,k):
-        min_sum = 10000 #set in a better way
-        akt_sum = 0
+        min_max = 10000 #set in a better way
+        akt_max = 0
         new_index = -1
         for i in range(n):
             if not i in chosen:
-                akt_sum = _max_sum_association(Q,chosen,i)
-                if akt_sum < min_sum:
-                    min_sum = akt_sum
+                akt_max = _max_association(Q,chosen,i)
+                if akt_max < min_max:
+                    min_max = akt_max
                     new_index = i
         chosen.append(new_index)
     return chosen
