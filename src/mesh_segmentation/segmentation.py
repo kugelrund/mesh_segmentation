@@ -7,9 +7,37 @@ import scipy.cluster
 import scipy.sparse
 import scipy.sparse.csgraph
 
+# Controls weight of geodesic to angular distance. Values closer to 0 give
+# the angular distance more importance, values closer to 1 give the geodesic
+# distance more importance
 delta = None
+
+# Weight of concavity. Values close to zero give more importance to concave
+# angles, values close to 1 treat convex and concave angles more equally
 eta = None
 
+
+class ProgressBar:
+    
+    def __init__(self, steps):
+        self._active = (hasattr(bpy.context.window_manager, 'progress_begin')and
+                       hasattr(bpy.context.window_manager, 'progress_update')and
+                       hasattr(bpy.context.window_manager, 'progress_end'))
+        if self._active:
+            self._steps = 0
+            self._max_steps = steps
+            bpy.context.window_manager.progress_begin(0, 100)
+            bpy.context.window_manager.progress_update(0)
+            
+    def step(self):
+        if self._active:
+            self._steps += 1
+            bpy.context.window_manager.progress_update(self._steps /
+                                                       self._max_steps)
+            if self._steps == self._max_steps:
+                bpy.context.window_manager.progress_end()
+                self._active = False
+                    
 
 def _face_center(mesh, face):
     """Computes the coordinates of the center of the given face"""
@@ -67,18 +95,15 @@ def _create_distance_matrices(mesh, save_dists):
         # matrix of angular distances
         A = scipy.sparse.lil_matrix((l, l), dtype=float)
         avgA = 0
-    
-        # progress bar
-      #  bpy.context.window_manager.progress_begin(0, 100)
-      #  progress = 0
-      #  step = 1/len(mesh.edge_keys)
-        
+            
         # number of pairs of adjacent faces
         num_adj = 0
+        
+        # progress bar
+        progress = ProgressBar(steps = len(mesh.edge_keys))
     
         # find adjacent faces
         for edge in mesh.edge_keys:
-          #  bpy.context.window_manager.progress_update(progress) 
             j = None # index of possible adjacent face
             for i, face in enumerate(faces):
                 if edge in face.edge_keys:
@@ -93,7 +118,7 @@ def _create_distance_matrices(mesh, save_dists):
                         break
                     else:
                         j = i
-            #progress += step
+            progress.step()
             
         avgG /= num_adj
         avgA /= num_adj
@@ -104,8 +129,6 @@ def _create_distance_matrices(mesh, save_dists):
             mesh["geo_dist_avg"] = avgG
             mesh["ang_dist_avg"] = avgA
             mesh["seg_eta"] = eta
-            
-        #bpy.context.window_manager.progress_end()
         
         return (G, A, avgG, avgA)
 
