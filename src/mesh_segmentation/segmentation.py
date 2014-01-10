@@ -20,9 +20,9 @@ eta = None
 class ProgressBar:
     
     def __init__(self, steps):
-        self._active = (hasattr(bpy.context.window_manager, 'progress_begin')and
-                       hasattr(bpy.context.window_manager, 'progress_update')and
-                       hasattr(bpy.context.window_manager, 'progress_end'))
+        self._active = (hasattr(bpy.context.window_manager,'progress_begin') and
+                        hasattr(bpy.context.window_manager,'progress_update')and
+                        hasattr(bpy.context.window_manager,'progress_end'))
         if self._active:
             self._steps = 0
             self._max_steps = steps
@@ -57,13 +57,10 @@ def _geodesic_distance(mesh, face1, face2, edge):
 
 def _angular_distance(mesh, face1, face2):
     """Computes the angular distance of the given adjacent faces"""
-    if face1.normal.dot(_face_center(mesh, face2) - _face_center(mesh, face1)) \
-       >= 0:
-           return (1 - math.cos(mathutils.Vector.angle(face1.normal,
-                                                       face2.normal)))
-    else:
-        return eta * (1 - math.cos(mathutils.Vector.angle(face1.normal,
-                                                          face2.normal)))
+    use_eta = (face1.normal.dot(_face_center(mesh, face2) -
+               _face_center(mesh, face1))) < 0
+    return use_eta, (1 - math.cos(mathutils.Vector.angle(face1.normal,
+                                                         face2.normal)))
                                                       
                                                       
 def _create_distance_matrices(mesh, save_dists):
@@ -81,13 +78,14 @@ def _create_distance_matrices(mesh, save_dists):
     
     if not save_dists and ("geo_dist_mat" in mesh and "ang_dist_mat" in mesh and
                            "geo_dist_avg" in mesh and "ang_dist_avg" in mesh and
-                           "seg_eta" in mesh and mesh["seg_eta"] == eta):
+                           "use_eta_list" in mesh):
         # the matrices are already calculated, we only have to load and
         # return them
         return (scipy.sparse.lil_matrix(mesh["geo_dist_mat"]),
                 scipy.sparse.lil_matrix(mesh["ang_dist_mat"]),
                 mesh["geo_dist_avg"],
-                mesh["ang_dist_avg"])
+                mesh["ang_dist_avg"],
+                mesh["use_eta_list"])
     else:
         # matrix of geodesic distances (use lil for fast insertion of entries)
         G = scipy.sparse.lil_matrix((l, l), dtype=float)
@@ -95,6 +93,9 @@ def _create_distance_matrices(mesh, save_dists):
         # matrix of angular distances
         A = scipy.sparse.lil_matrix((l, l), dtype=float)
         avgA = 0
+        
+        # saves, which entries in A have to be scaled with eta
+        use_eta_list = []
             
         # number of pairs of adjacent faces
         num_adj = 0
@@ -109,7 +110,10 @@ def _create_distance_matrices(mesh, save_dists):
                 if edge in face.edge_keys:
                     if not (j is None or G[i,j] != 0):
                         G[i,j] = _geodesic_distance(mesh, face, faces[j], edge)
-                        A[i,j] = _angular_distance(mesh, face, faces[j])
+                        use_eta,A[i,j] = _angular_distance(mesh, face, faces[j])
+                        if use_eta:
+                            # this entry has to be scaled with eta
+                            use_eta_list.append((i,j))
                         G[j,i] = G[i,j]
                         A[j,i] = A[i,j]
                         avgG += G[i,j]
@@ -128,16 +132,19 @@ def _create_distance_matrices(mesh, save_dists):
             mesh["ang_dist_mat"] = A.toarray()
             mesh["geo_dist_avg"] = avgG
             mesh["ang_dist_avg"] = avgA
-            mesh["seg_eta"] = eta
+            mesh["use_eta_list"] = use_eta_list
         
-        return (G, A, avgG, avgA)
+        return G, A, avgG, avgA, use_eta_list
 
 
 def _create_affinity_matrix(mesh):
     """Create the adjacency matrix of the given mesh"""
     
     l = len(mesh.polygons)
-    G, A, avgG, avgA = _create_distance_matrices(mesh, False)    
+    G, A, avgG, avgA, use_eta_list = _create_distance_matrices(mesh, False)
+    
+    for indices in use_eta_list:
+        A[indices[0], indices[1]] *= eta
     
     # weight with delta and average value
     G = G.dot(delta/avgG)
@@ -149,7 +156,6 @@ def _create_affinity_matrix(mesh):
     # change distance entries to similarities
     sigma = W.sum()/(l ** 2)
     den = 2 * (sigma ** 2)
-    
     for i in range(l):
         W[i,i] = 1
         for j in range(i + 1, l):
@@ -207,9 +213,9 @@ def segment_mesh(mesh, k, coefficients, action):
     # normalize each column to unit length
     V = V / [numpy.linalg.norm(column) for column in V.transpose()]
     
-    #compute association matrix
+    # compute association matrix
     Q = V.dot(V.transpose())
-    #compute initial guess for clustering
+    # compute initial guess for clustering
     initial_clusters = _initial_guess(Q, k)
     
     # apply kmeans

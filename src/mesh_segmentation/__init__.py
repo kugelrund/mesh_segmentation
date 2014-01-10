@@ -22,9 +22,9 @@ class MeshSegmentation(bpy.types.Operator):
     # parameters
     action = bpy.props.EnumProperty(name ="Action",
                                     items = [('assignMaterials', 
-                                            "Assign materials", 
-                                            "Assigns a different material for "
-                                            "each found segment")],
+                                             "Assign materials", 
+                                             "Assigns a different material for "
+                                             "each found segment")],
                                     description = "What to do with the "
                                                   "segmentation",
                                     default = 'assignMaterials')    
@@ -48,7 +48,7 @@ class MeshSegmentation(bpy.types.Operator):
                                                 "set close to one to treat "
                                                 "concave and convex angles "
                                                 "equally.",
-                                  default = 0.2,
+                                  default = 0.20,
                                   min = 1e-10,
                                   max = 1,
                                   subtype = 'FACTOR')
@@ -79,14 +79,20 @@ class MeshSegmentationSave(bpy.types.Operator):
     
     bl_idname = "mesh.mesh_segmentation_save"
     bl_label = "Save matrices for Segment Mesh"
+    bl_options = {'UNDO'}
     
     def execute(self, context):
         """Executes the saving of the distance matrices"""
         if context.active_object.type == 'MESH':
-            segmentation._create_distance_matrices(mesh = context.active_object.
-                                                          data,
-                                                   save_dists = True)
-            return {'FINISHED'}
+            if bpy.ops.mesh.separate(type='LOOSE') != {'CANCELLED'}:
+                self.report({'ERROR'}, "Separated not connected parts, choose " 
+                                       "one of them for segmentation!")
+                return {'CANCELLED'}
+            else:
+                segmentation._create_distance_matrices(
+                    mesh = context.active_object.data,
+                    save_dists = True)
+                return {'FINISHED'}
         else:
             self.report({'ERROR'}, "Selected object is not a mesh!")
             return {'CANCELLED'}        
