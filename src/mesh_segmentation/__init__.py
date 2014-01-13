@@ -38,17 +38,17 @@ class MeshSegmentation(bpy.types.Operator):
                                                   "distance, set close to one "
                                                   "for more importance on the "
                                                   "geodesic distance.",
-                                    default = 0.15,
+                                    default = 0.03,
                                     min = 0,
                                     max = 1,
                                     subtype = 'FACTOR')  
-    eta = bpy.props.FloatProperty(name = "Weight of concavity",
+    eta = bpy.props.FloatProperty(name = "Weight of convexity",
                                   description = "Set close to zero for more "
                                                 "importance on concave angles, "
                                                 "set close to one to treat "
                                                 "concave and convex angles "
                                                 "equally.",
-                                  default = 0.20,
+                                  default = 0.15,
                                   min = 1e-10,
                                   max = 1,
                                   subtype = 'FACTOR')

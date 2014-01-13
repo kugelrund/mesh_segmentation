@@ -12,7 +12,7 @@ import scipy.sparse.csgraph
 # distance more importance
 delta = None
 
-# Weight of concavity. Values close to zero give more importance to concave
+# Weight of convexity. Values close to zero give more importance to concave
 # angles, values close to 1 treat convex and concave angles more equally
 eta = None
 
@@ -77,14 +77,15 @@ def _create_distance_matrices(mesh, save_dists):
     l = len(faces)
     
     if not save_dists and ("geo_dist_mat" in mesh and "ang_dist_mat" in mesh and
-                           "geo_dist_avg" in mesh and "ang_dist_avg" in mesh and
-                           "use_eta_list" in mesh):
+                           "geo_dist_avg" in mesh and "ang_dist_sum" in mesh and
+                           "num_adj" in mesh and "use_eta_list" in mesh):
         # the matrices are already calculated, we only have to load and
         # return them
         return (scipy.sparse.lil_matrix(mesh["geo_dist_mat"]),
                 scipy.sparse.lil_matrix(mesh["ang_dist_mat"]),
                 mesh["geo_dist_avg"],
-                mesh["ang_dist_avg"],
+                mesh["ang_dist_sum"],
+                mesh["num_adj"],
                 mesh["use_eta_list"])
     else:
         # matrix of geodesic distances (use lil for fast insertion of entries)
@@ -92,7 +93,7 @@ def _create_distance_matrices(mesh, save_dists):
         avgG = 0
         # matrix of angular distances
         A = scipy.sparse.lil_matrix((l, l), dtype=float)
-        avgA = 0
+        sumA = 0
         
         # saves, which entries in A have to be scaled with eta
         use_eta_list = []
@@ -111,13 +112,16 @@ def _create_distance_matrices(mesh, save_dists):
                     if not (j is None or G[i,j] != 0):
                         G[i,j] = _geodesic_distance(mesh, face, faces[j], edge)
                         use_eta,A[i,j] = _angular_distance(mesh, face, faces[j])
-                        if use_eta:
-                            # this entry has to be scaled with eta
-                            use_eta_list.append((i,j))
                         G[j,i] = G[i,j]
                         A[j,i] = A[i,j]
                         avgG += G[i,j]
-                        avgA += A[i,j]
+                        if use_eta:
+                            # this entry has to be scaled with eta
+                            use_eta_list.append((i,j))
+                        else:
+                            # doesn't need eta so add it to the sum, if we
+                            # need eta we have to add it to the sum later
+                            sumA += A[i,j]
                         num_adj += 1
                         break
                     else:
@@ -125,26 +129,31 @@ def _create_distance_matrices(mesh, save_dists):
             progress.step()
             
         avgG /= num_adj
-        avgA /= num_adj
             
         if save_dists:
             mesh["geo_dist_mat"] = G.toarray()
             mesh["ang_dist_mat"] = A.toarray()
             mesh["geo_dist_avg"] = avgG
-            mesh["ang_dist_avg"] = avgA
+            mesh["ang_dist_sum"] = sumA
+            mesh["num_adj"] = num_adj
             mesh["use_eta_list"] = use_eta_list
         
-        return G, A, avgG, avgA, use_eta_list
+        return G, A, avgG, sumA, num_adj, use_eta_list
 
 
 def _create_affinity_matrix(mesh):
     """Create the adjacency matrix of the given mesh"""
     
     l = len(mesh.polygons)
-    G, A, avgG, avgA, use_eta_list = _create_distance_matrices(mesh, False)
+    G, A, avgG, sumA, num_adj, use_eta_list = _create_distance_matrices(mesh, 
+                                                                        False)
     
+    # scale needed angular distances with eta
     for indices in use_eta_list:
         A[indices[0], indices[1]] *= eta
+        A[indices[1], indices[0]] *= eta
+        sumA += A[indices[0], indices[1]]
+    avgA = sumA/num_adj
     
     # weight with delta and average value
     G = G.dot(delta/avgG)
