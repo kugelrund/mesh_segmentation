@@ -88,45 +88,76 @@ def _create_distance_matrices(mesh, save_dists):
                 mesh["num_adj"],
                 mesh["use_eta_list"])
     else:
-        # matrix of geodesic distances (use lil for fast insertion of entries)
-        G = scipy.sparse.lil_matrix((l, l), dtype=float)
-        avgG = 0
-        # matrix of angular distances
-        A = scipy.sparse.lil_matrix((l, l), dtype=float)
-        sumA = 0
-        
         # saves, which entries in A have to be scaled with eta
         use_eta_list = []
             
         # number of pairs of adjacent faces
         num_adj = 0
-        
-        # progress bar
-        progress = ProgressBar(steps = len(mesh.edge_keys))
-    
-        # find adjacent faces
-        for edge in mesh.edge_keys:
-            j = None # index of possible adjacent face
-            for i, face in enumerate(faces):
-                if edge in face.edge_keys:
-                    if not (j is None or G[i,j] != 0):
-                        G[i,j] = _geodesic_distance(mesh, face, faces[j], edge)
-                        use_eta,A[i,j] = _angular_distance(mesh, face, faces[j])
-                        G[j,i] = G[i,j]
-                        A[j,i] = A[i,j]
-                        avgG += G[i,j]
-                        if use_eta:
-                            # this entry has to be scaled with eta
-                            use_eta_list.append((i,j))
-                        else:
-                            # doesn't need eta so add it to the sum, if we
-                            # need eta we have to add it to the sum later
-                            sumA += A[i,j]
-                        num_adj += 1
-                        break
-                    else:
-                        j = i
+
+        # map from edge-key to adjacent faces
+        adj_faces_map = {}
+        # find adjacent faces by iterating edges
+        progress = ProgressBar(steps = l)
+        for index, face in enumerate(faces):
+            for edge in face.edge_keys:
+                if edge in adj_faces_map:
+                    adj_faces_map[edge].append(index)
+                else:
+                    adj_faces_map[edge] = [index]
             progress.step()
+        
+        # average G and cumulated A
+        avgG = 0
+        sumA = 0
+        # helping vectors to create sparse matrix later on
+        Arow = []
+        Acol = []
+        Aval = []
+        Grow = []
+        Gcol = []
+        Gval = []
+        # iterate adjacent faces and calculate distances
+        progress = ProgressBar(steps = len(adj_faces_map))
+        for edge, adj_faces in adj_faces_map.items():
+            if len(adj_faces) == 2:
+                i = adj_faces[0]
+                j = adj_faces[1]
+
+                Gtemp = _geodesic_distance(mesh, faces[i], faces[j], edge)
+                use_eta, Atemp = _angular_distance(mesh, faces[i], faces[j])
+                Gval.append(Gtemp)
+                Grow.append(i)
+                Gcol.append(j)
+                Gval.append(Gtemp)  # add symmetric entry
+                Grow.append(j)
+                Gcol.append(i)
+                Aval.append(Atemp)
+                Arow.append(i)
+                Acol.append(j)
+                Aval.append(Atemp)  # add symmetric entry
+                Arow.append(j)
+                Acol.append(i)
+
+                avgG += Gtemp
+                if use_eta:
+                    # this entry has to be scaled with eta
+                    use_eta_list.append((i,j))
+                else:
+                    # doesn't need eta so add it to the sum, if we
+                    # need eta we have to add it to the sum later
+                    sumA += Atemp
+                num_adj += 1
+
+            elif len(adj_faces) > 2:
+                raise ValueError("Edge with more than 2 adjacent faces!")
+
+            progress.step()
+
+        # create sparse matrices
+        # matrix of geodesic distances
+        G = scipy.sparse.csr_matrix((Gval, (Grow, Gcol)), shape=(l, l))
+        # matrix of angular distances
+        A = scipy.sparse.csr_matrix((Aval, (Arow, Acol)), shape=(l, l))
             
         avgG /= num_adj
             
@@ -145,6 +176,7 @@ def _create_affinity_matrix(mesh):
     """Create the adjacency matrix of the given mesh"""
     
     l = len(mesh.polygons)
+    print("mesh_segmentation: Creating distance matrices...")
     G, A, avgG, sumA, num_adj, use_eta_list = _create_distance_matrices(mesh, 
                                                                         False)
     
@@ -159,17 +191,16 @@ def _create_affinity_matrix(mesh):
     G = G.dot(delta/avgG)
     A = A.dot((1 - delta)/avgA)
     
+    print("mesh_segmentation: Finding shortest paths between all faces...")
     # for each non adjacent pair of faces find shortest path of adjacent faces 
     W = scipy.sparse.csgraph.dijkstra(G + A, directed = False)
     
+    print("mesh_segmentation: Creating affinity matrix...")
     # change distance entries to similarities
     sigma = W.sum()/(l ** 2)
     den = 2 * (sigma ** 2)
-    for i in range(l):
-        W[i,i] = 1
-        for j in range(i + 1, l):
-            W[i,j] = math.exp(-W[i,j]/den)
-            W[j,i] = W[i,j]
+    W = numpy.exp(-W/den)
+    numpy.fill_diagonal(W, 1)
             
     return W
 
@@ -212,26 +243,31 @@ def segment_mesh(mesh, k, coefficients, action):
     
     # affinity matrix
     W = _create_affinity_matrix(mesh)
+    print("mesh_segmentation: Calculating graph laplacian...")
     # degree matrix
     Dsqrt = numpy.diag([math.sqrt(1/entry) for entry in W.sum(1)])
     # graph laplacian
     L = Dsqrt.dot(W.dot(Dsqrt))
  
+    print("mesh_segmentation: Calculating eigenvectors...")
     # get eigenvectors
     l,V = scipy.linalg.eigh(L, eigvals = (L.shape[0] - k, L.shape[0] - 1))
     # normalize each column to unit length
     V = V / [numpy.linalg.norm(column) for column in V.transpose()]
     
+    print("mesh_segmentation: Preparing kmeans...")
     # compute association matrix
     Q = V.dot(V.transpose())
     # compute initial guess for clustering
     initial_clusters = _initial_guess(Q, k)
     
+    print("mesh_segmentation: Applying kmeans...")
     # apply kmeans
     cluster_res,_ = scipy.cluster.vq.kmeans(V, V[initial_clusters,:])
     # get identification vector
     idx,_ = scipy.cluster.vq.vq(V, cluster_res)
     
+    print("mesh_segmentation: Done clustering!")
     # perform action with the clustering result
     if action:
         action(mesh, k, idx)
