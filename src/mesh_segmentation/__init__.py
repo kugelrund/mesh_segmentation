@@ -14,24 +14,24 @@ imp.reload(actions)
 
 class MeshSegmentation(bpy.types.Operator):
     """Segment a mesh"""
-    
+
     bl_idname = "mesh.mesh_segmentation"
     bl_label = "Segment Mesh"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     # parameters
     action = bpy.props.EnumProperty(name ="Action",
-                                    items = [('assignMaterials', 
-                                             "Assign materials", 
+                                    items = [('assignMaterials',
+                                             "Assign materials",
                                              "Assigns a different material for "
                                              "each found segment")],
                                     description = "What to do with the "
                                                   "segmentation",
-                                    default = 'assignMaterials')    
+                                    default = 'assignMaterials')
     k = bpy.props.IntProperty(name = "Clusters",
                               description = "Amount of clusters",
                               min = 2,
-                              default = 2)   
+                              default = 2)
     delta = bpy.props.FloatProperty(name = "Delta",
                                     description = "Set close to zero for more "
                                                   "importance on the angular "
@@ -41,7 +41,7 @@ class MeshSegmentation(bpy.types.Operator):
                                     default = 0.03,
                                     min = 0,
                                     max = 1,
-                                    subtype = 'FACTOR')  
+                                    subtype = 'FACTOR')
     eta = bpy.props.FloatProperty(name = "Weight of convexity",
                                   description = "Set close to zero for more "
                                                 "importance on concave angles, "
@@ -54,38 +54,38 @@ class MeshSegmentation(bpy.types.Operator):
                                   subtype = 'FACTOR')
 
     def execute(self, context):
-        """Executes the segmentation"""        
+        """Executes the segmentation"""
         if bpy.ops.mesh.separate(type='LOOSE') != {'CANCELLED'}:
-            self.report({'ERROR'}, "Separated not connected parts, choose " 
+            self.report({'ERROR'}, "Separated not connected parts, choose "
                                    "one of them for segmentation!")
             return {'CANCELLED'}
         else:
-            segmentation.segment_mesh(mesh = context.active_object.data, 
-                                      k = self.k, 
-                                      coefficients = (self.delta, self.eta), 
+            segmentation.segment_mesh(mesh = context.active_object.data,
+                                      k = self.k,
+                                      coefficients = (self.delta, self.eta),
                                       action = getattr(actions, self.action))
             return {'FINISHED'}
-    
+
     def invoke(self, context, event):
         if context.active_object.type == 'MESH':
             return context.window_manager.invoke_props_dialog(self)
         else:
             self.report({'ERROR'}, "Selected object is not a mesh!")
             return {'CANCELLED'}
-                
-        
+
+
 class MeshSegmentationSave(bpy.types.Operator):
     """Save the distance matrices for Segmentation"""
-    
+
     bl_idname = "mesh.mesh_segmentation_save"
     bl_label = "Save matrices for Segment Mesh"
     bl_options = {'UNDO'}
-    
+
     def execute(self, context):
         """Executes the saving of the distance matrices"""
         if context.active_object.type == 'MESH':
             if bpy.ops.mesh.separate(type='LOOSE') != {'CANCELLED'}:
-                self.report({'ERROR'}, "Separated not connected parts, choose " 
+                self.report({'ERROR'}, "Separated not connected parts, choose "
                                        "one of them for segmentation!")
                 return {'CANCELLED'}
             else:
@@ -95,9 +95,9 @@ class MeshSegmentationSave(bpy.types.Operator):
                 return {'FINISHED'}
         else:
             self.report({'ERROR'}, "Selected object is not a mesh!")
-            return {'CANCELLED'}        
-        
-  
+            return {'CANCELLED'}
+
+
 def register():
     """Registers the addon in blender"""
     bpy.utils.register_class(MeshSegmentation)
@@ -108,8 +108,8 @@ def unregister():
     """Unregisters the addon from blender"""
     bpy.utils.unregister_class(MeshSegmentation)
     bpy.utils.unregister_class(MeshSegmentationSave)
-    
-    
+
+
 # developing purpose for registering when run from blender texteditor
 if __name__ == "__main__":
     register()
