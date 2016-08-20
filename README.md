@@ -13,3 +13,4 @@ Developed as a project for the spectral-clustering course of University Bremen. 
 Now you can select an object in the 3D viewport, hit spacebar and search for "Segment Mesh". Clicking on that entry shows the addon in a popup.
 
 <img src="example-results/hand.png" alt="Hand">
+You can find more examples in the example-results folder.
