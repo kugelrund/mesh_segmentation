@@ -10,4 +10,4 @@ Developed as a project for the spectral-clustering course of University Bremen. 
  - Run Blender, go to "User Preferences -> Addons" and search for "mesh segmentation"
  - Activate the plugin by ticking the box at the right.
 
-Now you can select an object in the 3D viewport, hit spacebar and search for "Segment Mesh". Clicking on that entry shows the addon in the toolbox to the left.
+Now you can select an object in the 3D viewport, hit spacebar and search for "Segment Mesh". Clicking on that entry shows the addon in a popup.
