@@ -6,6 +6,7 @@ import scipy.linalg
 import scipy.cluster
 import scipy.sparse
 import scipy.sparse.csgraph
+import scipy.sparse.linalg
 
 # Controls weight of geodesic to angular distance. Values closer to 0 give
 # the angular distance more importance, values closer to 1 give the geodesic
@@ -234,7 +235,7 @@ def _initial_guess(Q, k):
     return chosen
 
 
-def segment_mesh(mesh, k, coefficients, action):
+def segment_mesh(mesh, k, coefficients, action, ev_method):
     """Segments the given mesh into k clusters and performs the given
     action for each cluster
     """
@@ -254,7 +255,10 @@ def segment_mesh(mesh, k, coefficients, action):
 
     print("mesh_segmentation: Calculating eigenvectors...")
     # get eigenvectors
-    l,V = scipy.linalg.eigh(L, eigvals = (L.shape[0] - k, L.shape[0] - 1))
+    if ev_method == 'dense':
+        _, V = scipy.linalg.eigh(L, eigvals = (L.shape[0] - k, L.shape[0] - 1))
+    else:
+        _, V = scipy.sparse.linalg.eigsh(L, k)
     # normalize each column to unit length
     V = V / [numpy.linalg.norm(column) for column in V.transpose()]
 

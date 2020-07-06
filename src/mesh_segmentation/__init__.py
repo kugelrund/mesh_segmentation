@@ -53,6 +53,16 @@ class MeshSegmentation(bpy.types.Operator):
                                  min = 1e-10,
                                  max = 1,
                                  subtype = 'FACTOR')
+    ev_method: bpy.props.EnumProperty(name = "EV method",
+        items = [('sparse', "Sparse", "Sparse method for eigenvector "
+                                      "computation (scipy.sparse.linalg.eigsh)"),
+                 ('dense', "Dense", "Dense method for eigenvector computation "
+                                    "(scipy.linalg.eigh)")],
+        description = "Method to use for eigenvector computation. 'Sparse' "
+                      "should usually preferred, as it tends to be much faster "
+                      "without sacrificing quality. 'Dense' can be tried as "
+                      "fallback. Default",
+        default = 'sparse')
 
     def execute(self, context):
         """Executes the segmentation"""
@@ -64,7 +74,8 @@ class MeshSegmentation(bpy.types.Operator):
             segmentation.segment_mesh(mesh = context.active_object.data,
                                       k = self.k,
                                       coefficients = (self.delta, self.eta),
-                                      action = getattr(actions, self.action))
+                                      action = getattr(actions, self.action),
+                                      ev_method = self.ev_method)
             return {'FINISHED'}
 
     def invoke(self, context, event):
