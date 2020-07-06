@@ -1,6 +1,7 @@
 bl_info = {
     "name": "Mesh Segmentation",
     "description": "Segments an object and applies an action on each segment",
+    "blender": (2, 80, 0),
     "category": "Mesh"}
 
 import bpy
@@ -20,38 +21,38 @@ class MeshSegmentation(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     # parameters
-    action = bpy.props.EnumProperty(name ="Action",
-                                    items = [('assignMaterials',
+    action: bpy.props.EnumProperty(name ="Action",
+                                   items = [('assignMaterials',
                                              "Assign materials",
                                              "Assigns a different material for "
                                              "each found segment")],
-                                    description = "What to do with the "
-                                                  "segmentation",
-                                    default = 'assignMaterials')
-    k = bpy.props.IntProperty(name = "Clusters",
-                              description = "Amount of clusters",
-                              min = 2,
-                              default = 2)
-    delta = bpy.props.FloatProperty(name = "Delta",
-                                    description = "Set close to zero for more "
-                                                  "importance on the angular "
-                                                  "distance, set close to one "
-                                                  "for more importance on the "
-                                                  "geodesic distance.",
-                                    default = 0.03,
-                                    min = 0,
-                                    max = 1,
-                                    subtype = 'FACTOR')
-    eta = bpy.props.FloatProperty(name = "Weight of convexity",
-                                  description = "Set close to zero for more "
-                                                "importance on concave angles, "
-                                                "set close to one to treat "
-                                                "concave and convex angles "
-                                                "equally.",
-                                  default = 0.15,
-                                  min = 1e-10,
-                                  max = 1,
-                                  subtype = 'FACTOR')
+                                   description = "What to do with the "
+                                                 "segmentation",
+                                   default = 'assignMaterials')
+    k: bpy.props.IntProperty(name = "Clusters",
+                             description = "Amount of clusters",
+                             min = 2,
+                             default = 2)
+    delta: bpy.props.FloatProperty(name = "Delta",
+                                   description = "Set close to zero for more "
+                                                 "importance on the angular "
+                                                 "distance, set close to one "
+                                                 "for more importance on the "
+                                                 "geodesic distance.",
+                                   default = 0.03,
+                                   min = 0,
+                                   max = 1,
+                                   subtype = 'FACTOR')
+    eta: bpy.props.FloatProperty(name = "Weight of convexity",
+                                 description = "Set close to zero for more "
+                                               "importance on concave angles, "
+                                               "set close to one to treat "
+                                               "concave and convex angles "
+                                               "equally.",
+                                 default = 0.15,
+                                 min = 1e-10,
+                                 max = 1,
+                                 subtype = 'FACTOR')
 
     def execute(self, context):
         """Executes the segmentation"""

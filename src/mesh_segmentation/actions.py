@@ -5,14 +5,12 @@ def assignMaterials(mesh, k, idx):
     """Assigns a random colored material for each found segment"""
 
     # clear all existing materials
-    while mesh.materials:
-        mesh.materials.pop(0, update_data=True)
+    mesh.materials.clear()
 
     for i in range(k):
         material = bpy.data.materials.new(''.join(['mat', mesh.name, str(i)]))
-        material.diffuse_color = (random.random(),
-                                  random.random(),
-                                  random.random())
+        material.diffuse_color = (random.random(), random.random(),
+                                  random.random(), 1.0)
         mesh.materials.append(material)
 
     for i, id in enumerate(idx):
