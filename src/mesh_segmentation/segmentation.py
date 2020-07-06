@@ -248,9 +248,9 @@ def segment_mesh(mesh, k, coefficients, action):
     W = _create_affinity_matrix(mesh)
     print("mesh_segmentation: Calculating graph laplacian...")
     # degree matrix
-    Dsqrt = numpy.diag([math.sqrt(1/entry) for entry in W.sum(1)])
+    Dsqrt = numpy.sqrt(numpy.reciprocal(W.sum(1)))
     # graph laplacian
-    L = Dsqrt.dot(W.dot(Dsqrt))
+    L = ((W * Dsqrt).transpose() * Dsqrt).transpose()
 
     print("mesh_segmentation: Calculating eigenvectors...")
     # get eigenvectors
