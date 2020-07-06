@@ -5,7 +5,7 @@ A simple python addon for blender using spectral clustering to segment meshes. U
 Developed as a project for the spectral-clustering course of University Bremen. Based on the paper "Segmentation of 3D Meshes through Spectral Clustering" by Rong Liu and Hao Zhang.
 ### Usage
 
- - [Install numpy and scipy](http://scipy.org/install.html). On Windows you will have to move the numpy and scipy folders to "YOUR_BLENDER_PATH/python/lib/site_packages" or "YOUR_BLENDER_PATH/python/scripts/modules"
+ - Install [scipy](http://scipy.org/install.html) in the Python installation that is used by Blender. On Linux this should usually be the system Python, so simply installing *scipy* with your package manager should work. On Windows there will usually be a separate Python installation coming with Blender, so it's a bit more tricky. Perhaps the simplest way is to open a command prompt or power shell with admin rights, navigate to "YOUR_BLENDER_PATH/python/bin" and run `./python -m ensurepip` followed by `./python -m pip install scipy`
  - Put the "mesh_segmentation" folder inside of "src" to "YOUR_BLENDER_PATH/python/scripts/addons"
  - Run Blender, go to "User Preferences -> Addons" and search for "mesh segmentation"
  - Activate the plugin by ticking the box at the right.
