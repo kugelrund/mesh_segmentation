@@ -175,8 +175,8 @@ def segment_mesh(mesh, k, coefficients, action, ev_method):
         _, V = scipy.linalg.eigh(L, eigvals = (L.shape[0] - k, L.shape[0] - 1))
     else:
         _, V = scipy.sparse.linalg.eigsh(L, k)
-    # normalize each column to unit length
-    V = V / [numpy.linalg.norm(column) for column in V.transpose()]
+    # normalize each row to unit length
+    V /= numpy.linalg.norm(V, axis=1)[:,None]
 
     print("mesh_segmentation: Preparing kmeans...")
     # compute association matrix
