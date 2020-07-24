@@ -179,13 +179,11 @@ def segment_mesh(mesh, k, coefficients, action, ev_method):
     # compute association matrix
     Q = V.dot(V.transpose())
     # compute initial guess for clustering
-    initial_clusters = _initial_guess(Q, k)
+    initial_centroids = _initial_guess(Q, k)
 
     print("mesh_segmentation: Applying kmeans...")
     # apply kmeans
-    cluster_res,_ = scipy.cluster.vq.kmeans(V, V[initial_clusters,:])
-    # get identification vector
-    idx,_ = scipy.cluster.vq.vq(V, cluster_res)
+    _, idx = scipy.cluster.vq.kmeans2(V, V[initial_centroids,:], iter=50)
 
     print("mesh_segmentation: Done clustering!")
     # perform action with the clustering result
