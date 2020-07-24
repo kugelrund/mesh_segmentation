@@ -42,108 +42,84 @@ def _angular_distance(mesh, face1, face2):
                                                          face2.normal)))
 
 
-def _create_distance_matrices(mesh, save_dists):
+def _create_distance_matrices(mesh):
     """Creates the matrices of the angular and geodesic distances
     between all adjacent faces. The i,j-th entry of the returned
     matrices contains the distance between the i-th and j-th face.
-
-    save_dists = True will calculate the matrices and save them
-    into the mesh, so that these can be used in a later call of
-    this function with save_dists = False
     """
 
     faces = mesh.polygons
     l = len(faces)
 
-    if not save_dists and ("geo_dist_mat" in mesh and "ang_dist_mat" in mesh and
-                           "geo_dist_avg" in mesh and "ang_dist_sum" in mesh and
-                           "num_adj" in mesh and "use_eta_list" in mesh):
-        # the matrices are already calculated, we only have to load and
-        # return them
-        return (scipy.sparse.lil_matrix(mesh["geo_dist_mat"]),
-                scipy.sparse.lil_matrix(mesh["ang_dist_mat"]),
-                mesh["geo_dist_avg"],
-                mesh["ang_dist_sum"],
-                mesh["num_adj"],
-                mesh["use_eta_list"])
-    else:
-        # saves, which entries in A have to be scaled with eta
-        use_eta_list = []
+    # saves, which entries in A have to be scaled with eta
+    use_eta_list = []
 
-        # number of pairs of adjacent faces
-        num_adj = 0
+    # number of pairs of adjacent faces
+    num_adj = 0
 
-        # map from edge-key to adjacent faces
-        adj_faces_map = {}
-        # find adjacent faces by iterating edges
-        for index, face in enumerate(faces):
-            for edge in face.edge_keys:
-                if edge in adj_faces_map:
-                    adj_faces_map[edge].append(index)
-                else:
-                    adj_faces_map[edge] = [index]
+    # map from edge-key to adjacent faces
+    adj_faces_map = {}
+    # find adjacent faces by iterating edges
+    for index, face in enumerate(faces):
+        for edge in face.edge_keys:
+            if edge in adj_faces_map:
+                adj_faces_map[edge].append(index)
+            else:
+                adj_faces_map[edge] = [index]
 
-        # average G and cumulated A
-        avgG = 0
-        sumA = 0
-        # helping vectors to create sparse matrix later on
-        Arow = []
-        Acol = []
-        Aval = []
-        Grow = []
-        Gcol = []
-        Gval = []
-        # iterate adjacent faces and calculate distances
-        for edge, adj_faces in adj_faces_map.items():
-            if len(adj_faces) == 2:
-                i = adj_faces[0]
-                j = adj_faces[1]
+    # average G and cumulated A
+    avgG = 0
+    sumA = 0
+    # helping vectors to create sparse matrix later on
+    Arow = []
+    Acol = []
+    Aval = []
+    Grow = []
+    Gcol = []
+    Gval = []
+    # iterate adjacent faces and calculate distances
+    for edge, adj_faces in adj_faces_map.items():
+        if len(adj_faces) == 2:
+            i = adj_faces[0]
+            j = adj_faces[1]
 
-                Gtemp = _geodesic_distance(mesh, faces[i], faces[j], edge)
-                use_eta, Atemp = _angular_distance(mesh, faces[i], faces[j])
-                Gval.append(Gtemp)
-                Grow.append(i)
-                Gcol.append(j)
-                Gval.append(Gtemp)  # add symmetric entry
-                Grow.append(j)
-                Gcol.append(i)
-                Aval.append(Atemp)
-                Arow.append(i)
-                Acol.append(j)
-                Aval.append(Atemp)  # add symmetric entry
-                Arow.append(j)
-                Acol.append(i)
+            Gtemp = _geodesic_distance(mesh, faces[i], faces[j], edge)
+            use_eta, Atemp = _angular_distance(mesh, faces[i], faces[j])
+            Gval.append(Gtemp)
+            Grow.append(i)
+            Gcol.append(j)
+            Gval.append(Gtemp)  # add symmetric entry
+            Grow.append(j)
+            Gcol.append(i)
+            Aval.append(Atemp)
+            Arow.append(i)
+            Acol.append(j)
+            Aval.append(Atemp)  # add symmetric entry
+            Arow.append(j)
+            Acol.append(i)
 
-                avgG += Gtemp
-                if use_eta:
-                    # this entry has to be scaled with eta
-                    use_eta_list.append((i,j))
-                else:
-                    # doesn't need eta so add it to the sum, if we
-                    # need eta we have to add it to the sum later
-                    sumA += Atemp
-                num_adj += 1
+            avgG += Gtemp
+            if use_eta:
+                # this entry has to be scaled with eta
+                use_eta_list.append((i,j))
+            else:
+                # doesn't need eta so add it to the sum, if we
+                # need eta we have to add it to the sum later
+                sumA += Atemp
+            num_adj += 1
 
-            elif len(adj_faces) > 2:
-                print("Edge with more than 2 adjacent faces: " + str(adj_faces) + "!")
+        elif len(adj_faces) > 2:
+            print("Edge with more than 2 adjacent faces: " + str(adj_faces) + "!")
 
-        # create sparse matrices
-        # matrix of geodesic distances
-        G = scipy.sparse.csr_matrix((Gval, (Grow, Gcol)), shape=(l, l))
-        # matrix of angular distances
-        A = scipy.sparse.csr_matrix((Aval, (Arow, Acol)), shape=(l, l))
+    # create sparse matrices
+    # matrix of geodesic distances
+    G = scipy.sparse.csr_matrix((Gval, (Grow, Gcol)), shape=(l, l))
+    # matrix of angular distances
+    A = scipy.sparse.csr_matrix((Aval, (Arow, Acol)), shape=(l, l))
 
-        avgG /= num_adj
+    avgG /= num_adj
 
-        if save_dists:
-            mesh["geo_dist_mat"] = G.toarray()
-            mesh["ang_dist_mat"] = A.toarray()
-            mesh["geo_dist_avg"] = avgG
-            mesh["ang_dist_sum"] = sumA
-            mesh["num_adj"] = num_adj
-            mesh["use_eta_list"] = use_eta_list
-
-        return G, A, avgG, sumA, num_adj, use_eta_list
+    return G, A, avgG, sumA, num_adj, use_eta_list
 
 
 def _create_affinity_matrix(mesh):
@@ -151,8 +127,7 @@ def _create_affinity_matrix(mesh):
 
     l = len(mesh.polygons)
     print("mesh_segmentation: Creating distance matrices...")
-    G, A, avgG, sumA, num_adj, use_eta_list = _create_distance_matrices(mesh,
-                                                                        False)
+    G, A, avgG, sumA, num_adj, use_eta_list = _create_distance_matrices(mesh)
 
     # scale needed angular distances with eta
     for indices in use_eta_list:
