@@ -45,17 +45,14 @@ def _angular_distance(mesh, face1, face2):
     return angular_distance
 
 
-def _create_distance_matrices(mesh):
-    """Creates the matrices of the angular and geodesic distances
+def _create_distance_matrix(mesh):
+    """Creates the matrix of the angular and geodesic distances
     between all adjacent faces. The i,j-th entry of the returned
     matrices contains the distance between the i-th and j-th face.
     """
 
     faces = mesh.polygons
     l = len(faces)
-
-    # number of pairs of adjacent faces
-    num_adj = 0
 
     # map from edge-key to adjacent faces
     adj_faces_map = {}
@@ -67,16 +64,11 @@ def _create_distance_matrices(mesh):
             else:
                 adj_faces_map[edge] = [index]
 
-    # average G and cumulated A
-    avgG = 0
-    avgA = 0
     # helping vectors to create sparse matrix later on
-    Arow = []
-    Acol = []
-    Aval = []
-    Grow = []
-    Gcol = []
-    Gval = []
+    row_indices = []
+    col_indices = []
+    Gval = []  # values for matrix of angular distances
+    Aval = []  # values for matrix of geodesic distances
     # iterate adjacent faces and calculate distances
     for edge, adj_faces in adj_faces_map.items():
         if len(adj_faces) == 2:
@@ -86,39 +78,27 @@ def _create_distance_matrices(mesh):
             Gtemp = _geodesic_distance(mesh, faces[i], faces[j], edge)
             Atemp = _angular_distance(mesh, faces[i], faces[j])
             Gval.append(Gtemp)
-            Grow.append(i)
-            Gcol.append(j)
-            Gval.append(Gtemp)  # add symmetric entry
-            Grow.append(j)
-            Gcol.append(i)
             Aval.append(Atemp)
-            Arow.append(i)
-            Acol.append(j)
-            Aval.append(Atemp)  # add symmetric entry
-            Arow.append(j)
-            Acol.append(i)
-
-            avgG += Gtemp
-            avgA += Atemp
-            num_adj += 1
+            row_indices.append(i)
+            col_indices.append(j)
+            # add symmetric entry
+            Gval.append(Gtemp)
+            Aval.append(Atemp)
+            row_indices.append(j)
+            col_indices.append(i)
 
         elif len(adj_faces) > 2:
             print("Edge with more than 2 adjacent faces: " + str(adj_faces) + "!")
 
-    # create sparse matrices
-    # matrix of geodesic distances
-    G = scipy.sparse.csr_matrix((Gval, (Grow, Gcol)), shape=(l, l))
-    # matrix of angular distances
-    A = scipy.sparse.csr_matrix((Aval, (Arow, Acol)), shape=(l, l))
+    Gval = numpy.array(Gval)
+    Aval = numpy.array(Aval)
+    values = delta * Gval / numpy.mean(Gval) + \
+             (1.0 - delta) * Aval / numpy.mean(Aval)
 
-    avgG /= num_adj
-    avgA /= num_adj
-
-    # weight with delta and average value
-    G = G.dot(delta/avgG)
-    A = A.dot((1 - delta)/avgA)
-
-    return G, A
+    # create sparse matrix
+    distance_matrix = scipy.sparse.csr_matrix(
+        (values, (row_indices, col_indices)), shape=(l, l))
+    return distance_matrix
 
 
 def _create_affinity_matrix(mesh):
@@ -126,11 +106,11 @@ def _create_affinity_matrix(mesh):
 
     l = len(mesh.polygons)
     print("mesh_segmentation: Creating distance matrices...")
-    G, A = _create_distance_matrices(mesh)
+    distance_matrix = _create_distance_matrix(mesh)
 
     print("mesh_segmentation: Finding shortest paths between all faces...")
     # for each non adjacent pair of faces find shortest path of adjacent faces
-    W = scipy.sparse.csgraph.dijkstra(G + A, directed = False)
+    W = scipy.sparse.csgraph.dijkstra(distance_matrix, directed = False)
     inf_indices = numpy.where(numpy.isinf(W))
     W[inf_indices] = 0
 
