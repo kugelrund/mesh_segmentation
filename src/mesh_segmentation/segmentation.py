@@ -110,7 +110,7 @@ def _create_affinity_matrix(mesh):
 
     print("mesh_segmentation: Finding shortest paths between all faces...")
     # for each non adjacent pair of faces find shortest path of adjacent faces
-    W = scipy.sparse.csgraph.dijkstra(distance_matrix, directed = False)
+    W = scipy.sparse.csgraph.dijkstra(distance_matrix)
     inf_indices = numpy.where(numpy.isinf(W))
     W[inf_indices] = 0
 
