@@ -1,3 +1,7 @@
+# Mesh segmentation through spectral clustering. Based on "Segmentation of 3D
+# Meshes through Spectral Clustering" by Rong Liu and Hao Zhang
+# (https://doi.org/10.1109/PCCGA.2004.1348360).
+
 bl_info = {
     "name": "Mesh Segmentation",
     "description": "Segments an object and applies an action on each segment",
