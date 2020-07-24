@@ -36,10 +36,13 @@ def _geodesic_distance(mesh, face1, face2, edge):
 
 def _angular_distance(mesh, face1, face2):
     """Computes the angular distance of the given adjacent faces"""
-    use_eta = (face1.normal.dot(_face_center(mesh, face2) -
-               _face_center(mesh, face1))) < 0
-    return use_eta, (1 - math.cos(mathutils.Vector.angle(face1.normal,
-                                                         face2.normal)))
+    angular_distance = (1 - math.cos(mathutils.Vector.angle(face1.normal,
+                                                            face2.normal)))
+    if (face1.normal.dot(_face_center(mesh, face2) -
+                         _face_center(mesh, face1))) < 0:
+        # convex angles are not that bad so scale down distance a bit
+        angular_distance *= eta
+    return angular_distance
 
 
 def _create_distance_matrices(mesh):
@@ -50,9 +53,6 @@ def _create_distance_matrices(mesh):
 
     faces = mesh.polygons
     l = len(faces)
-
-    # saves, which entries in A have to be scaled with eta
-    use_eta_list = []
 
     # number of pairs of adjacent faces
     num_adj = 0
@@ -69,7 +69,7 @@ def _create_distance_matrices(mesh):
 
     # average G and cumulated A
     avgG = 0
-    sumA = 0
+    avgA = 0
     # helping vectors to create sparse matrix later on
     Arow = []
     Acol = []
@@ -84,7 +84,7 @@ def _create_distance_matrices(mesh):
             j = adj_faces[1]
 
             Gtemp = _geodesic_distance(mesh, faces[i], faces[j], edge)
-            use_eta, Atemp = _angular_distance(mesh, faces[i], faces[j])
+            Atemp = _angular_distance(mesh, faces[i], faces[j])
             Gval.append(Gtemp)
             Grow.append(i)
             Gcol.append(j)
@@ -99,13 +99,7 @@ def _create_distance_matrices(mesh):
             Acol.append(i)
 
             avgG += Gtemp
-            if use_eta:
-                # this entry has to be scaled with eta
-                use_eta_list.append((i,j))
-            else:
-                # doesn't need eta so add it to the sum, if we
-                # need eta we have to add it to the sum later
-                sumA += Atemp
+            avgA += Atemp
             num_adj += 1
 
         elif len(adj_faces) > 2:
@@ -118,8 +112,13 @@ def _create_distance_matrices(mesh):
     A = scipy.sparse.csr_matrix((Aval, (Arow, Acol)), shape=(l, l))
 
     avgG /= num_adj
+    avgA /= num_adj
 
-    return G, A, avgG, sumA, num_adj, use_eta_list
+    # weight with delta and average value
+    G = G.dot(delta/avgG)
+    A = A.dot((1 - delta)/avgA)
+
+    return G, A
 
 
 def _create_affinity_matrix(mesh):
@@ -127,18 +126,7 @@ def _create_affinity_matrix(mesh):
 
     l = len(mesh.polygons)
     print("mesh_segmentation: Creating distance matrices...")
-    G, A, avgG, sumA, num_adj, use_eta_list = _create_distance_matrices(mesh)
-
-    # scale needed angular distances with eta
-    for indices in use_eta_list:
-        A[indices[0], indices[1]] *= eta
-        A[indices[1], indices[0]] *= eta
-        sumA += A[indices[0], indices[1]]
-    avgA = sumA/num_adj
-
-    # weight with delta and average value
-    G = G.dot(delta/avgG)
-    A = A.dot((1 - delta)/avgA)
+    G, A = _create_distance_matrices(mesh)
 
     print("mesh_segmentation: Finding shortest paths between all faces...")
     # for each non adjacent pair of faces find shortest path of adjacent faces
