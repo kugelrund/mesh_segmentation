@@ -126,26 +126,23 @@ def _create_affinity_matrix(mesh):
 
 
 def _initial_guess(Q, k):
-    """Computes an initial guess for the cluster-centers"""
-    n = Q.shape[0]
-    min_value = 2
-    min_indices=(-1,-1)
-    for (i,j), value in numpy.ndenumerate(Q):
-        if i != j and value < min_value:
-            min_value = Q[i,j]
-            min_indices = (i,j)
+    """Computes an initial guess for the cluster-centers
+
+    Chooses indices of the observations with the least association to each
+    other in a greedy manner. Q is the association matrix of the observations.
+    """
+
+    # choose the pair of indices with the lowest association to each other
+    min_indices = numpy.unravel_index(numpy.argmin(Q), Q.shape)
 
     chosen = [min_indices[0], min_indices[1]]
     for _ in range(2,k):
-        min_max = float("inf")
-        cur_max = 0
-        new_index = -1
-        for i in range(n):
-            if i not in chosen:
-                cur_max = Q[chosen,i].max()
-                if cur_max < min_max:
-                    min_max = cur_max
-                    new_index = i
+        # Take the maximum of the associations to the already chosen indices for
+        # every index. The index with the lowest result in that therefore is the
+        # least similar to the already chosen pivots so we take it.
+        # Note that we will never get an index that was already chosen because
+        # an index always has the highest possible association 1.0 to itself
+        new_index = numpy.argmin(numpy.max(Q[chosen,:], axis=0))
         chosen.append(new_index)
 
     return chosen
