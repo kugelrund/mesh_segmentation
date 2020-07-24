@@ -18,28 +18,6 @@ delta = None
 eta = None
 
 
-class ProgressBar:
-
-    def __init__(self, steps):
-        self._active = (hasattr(bpy.context.window_manager,'progress_begin') and
-                        hasattr(bpy.context.window_manager,'progress_update')and
-                        hasattr(bpy.context.window_manager,'progress_end'))
-        if self._active:
-            self._steps = 0
-            self._max_steps = steps
-            bpy.context.window_manager.progress_begin(0, 100)
-            bpy.context.window_manager.progress_update(0)
-
-    def step(self):
-        if self._active:
-            self._steps += 1
-            bpy.context.window_manager.progress_update(self._steps /
-                                                       self._max_steps)
-            if self._steps == self._max_steps:
-                bpy.context.window_manager.progress_end()
-                self._active = False
-
-
 def _face_center(mesh, face):
     """Computes the coordinates of the center of the given face"""
     center = mathutils.Vector()
@@ -98,14 +76,12 @@ def _create_distance_matrices(mesh, save_dists):
         # map from edge-key to adjacent faces
         adj_faces_map = {}
         # find adjacent faces by iterating edges
-        progress = ProgressBar(steps = l)
         for index, face in enumerate(faces):
             for edge in face.edge_keys:
                 if edge in adj_faces_map:
                     adj_faces_map[edge].append(index)
                 else:
                     adj_faces_map[edge] = [index]
-            progress.step()
 
         # average G and cumulated A
         avgG = 0
@@ -118,7 +94,6 @@ def _create_distance_matrices(mesh, save_dists):
         Gcol = []
         Gval = []
         # iterate adjacent faces and calculate distances
-        progress = ProgressBar(steps = len(adj_faces_map))
         for edge, adj_faces in adj_faces_map.items():
             if len(adj_faces) == 2:
                 i = adj_faces[0]
@@ -151,8 +126,6 @@ def _create_distance_matrices(mesh, save_dists):
 
             elif len(adj_faces) > 2:
                 print("Edge with more than 2 adjacent faces: " + str(adj_faces) + "!")
-
-            progress.step()
 
         # create sparse matrices
         # matrix of geodesic distances
