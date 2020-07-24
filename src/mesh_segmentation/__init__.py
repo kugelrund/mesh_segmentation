@@ -63,6 +63,11 @@ class MeshSegmentation(bpy.types.Operator):
                       "without sacrificing quality. 'Dense' can be tried as "
                       "fallback. Default",
         default = 'sparse')
+    kmeans_init: bpy.props.EnumProperty(name = "k-means initialization",
+        items = [('liu_zhang', "Liu & Zhang", "Initialization by Liu & Zhang"),
+                 ('kmeans++', "k-means++", "Initialization from k-means++")],
+        description = "Method to use for initializing centroids for k-means.",
+        default = 'liu_zhang')
 
     def execute(self, context):
         """Executes the segmentation"""
@@ -75,7 +80,8 @@ class MeshSegmentation(bpy.types.Operator):
                                       k = self.k,
                                       coefficients = (self.delta, self.eta),
                                       action = getattr(actions, self.action),
-                                      ev_method = self.ev_method)
+                                      ev_method = self.ev_method,
+                                      kmeans_init = self.kmeans_init)
             return {'FINISHED'}
 
     def invoke(self, context, event):

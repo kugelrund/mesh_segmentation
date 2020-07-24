@@ -148,7 +148,7 @@ def _initial_guess(Q, k):
     return chosen
 
 
-def segment_mesh(mesh, k, coefficients, action, ev_method):
+def segment_mesh(mesh, k, coefficients, action, ev_method, kmeans_init):
     """Segments the given mesh into k clusters and performs the given
     action for each cluster
     """
@@ -175,15 +175,18 @@ def segment_mesh(mesh, k, coefficients, action, ev_method):
     # normalize each row to unit length
     V /= numpy.linalg.norm(V, axis=1)[:,None]
 
-    print("mesh_segmentation: Preparing kmeans...")
-    # compute association matrix
-    Q = V.dot(V.transpose())
-    # compute initial guess for clustering
-    initial_centroids = _initial_guess(Q, k)
+    if kmeans_init == 'kmeans++':
+        print("mesh_segmentation: Applying kmeans...")
+        _, idx = scipy.cluster.vq.kmeans2(V, k, minit='++', iter=50)
+    else:
+        print("mesh_segmentation: Preparing kmeans...")
+        # compute association matrix
+        Q = V.dot(V.transpose())
+        # compute initial guess for clustering
+        initial_centroids = _initial_guess(Q, k)
 
-    print("mesh_segmentation: Applying kmeans...")
-    # apply kmeans
-    _, idx = scipy.cluster.vq.kmeans2(V, V[initial_centroids,:], iter=50)
+        print("mesh_segmentation: Applying kmeans...")
+        _, idx = scipy.cluster.vq.kmeans2(V, V[initial_centroids,:], iter=50)
 
     print("mesh_segmentation: Done clustering!")
     # perform action with the clustering result
